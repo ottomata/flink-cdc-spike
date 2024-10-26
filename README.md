@@ -47,15 +47,31 @@ The flink-launcher container can be used to launch flink-cdc pipelines, or flink
 
 Launch the MySQL -> Kafka flink-cdc pipeline:
 
-# launch mediawiki mariadb -> kafka flink-cdc pipeline
-```
+### launch mediawiki mariadb -> kafka flink-cdc pipeline
+
+```bash
 # /tmp/flink-cdc-pipeline-conf is mounted in the container from flink-cdc-spike/flink-cdc-pipeline-conf
 docker compose run flink-launcher /opt/flink-cdc-3.1.0/bin/flink-cdc.sh \
     /tmp/flink-cdc-pipeline-conf/mysql-cdc-to-kafka.yaml
 ```
 
-# TODO
+NOTE: This has to be launched into a Flink session cluster. According to
+https://nightlies.apache.org/flink/flink-cdc-docs-release-3.2/docs/deployment/kubernetes/,
 
-Much more!
+> Please note that submitting with native application mode and Flink Kubernetes operator are not supported for now.
+
+
+### Launch Paimon kafka_sync_database action
+TODO!
+
+THIS DOES NOT WORK YET! https://phabricator.wikimedia.org/T373144#10264493
+
+This is set up in docker-compose.override.yml as a standalone flink application cluster.
+
+```bash
+docker-compose up -d flink-jobmanager-kafka-to-paimon flink-taskmanager-kafka-to-paimon
+```
+
+
 
 

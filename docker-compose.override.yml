@@ -71,9 +71,8 @@ services:
      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
-
   flink-jobmanager:
-    image: flink-cdc-spike:v1
+    image: flink-base:v1
     volumes:
       # cache/flink/warehouse will be used to store Flink SQL catalogs
       - ./flink-cdc-spike/cache/flink/warehouse:/user/hive/warehouse
@@ -86,12 +85,12 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
-        taskmanager.numberOfTaskSlots: 2
+        jobmanager.rest.port: 8081
         execution.checkpointing.interval: 3000
 
 
   flink-taskmanager:
-    image: flink-cdc-spike:v1
+    image: flink-base:v1
     volumes:
       # cache/flink/warehouse will be used to store Flink SQL catalogs
       - ./flink-cdc-spike/cache/flink/warehouse:/user/hive/warehouse
@@ -107,11 +106,12 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
-        taskmanager.numberOfTaskSlots: 2
+        jobmanager.rest.port: 8081
         execution.checkpointing.interval: 3000
 
+  # flink launcher
   flink-launcher:
-    image: flink-cdc-spike:v1
+    image: flink-base:v1
     volumes:
       # flink-cdc-pipeline-conf has flink cdc pipeline confs
       - ./flink-cdc-spike/flink-cdc-pipeline-conf:/tmp/flink-cdc-pipeline-conf
@@ -125,7 +125,62 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
+        jobmanager.rest.port: 8081
         rest.address: jobmanager
+
+  flink-jobmanager-kafka-to-paimon:
+    image: flink-base:v1
+    volumes:
+      # cache/flink/warehouse will be used to store Flink SQL catalogs
+      - ./flink-cdc-spike/cache/flink/warehouse:/user/hive/warehouse
+      - ./flink-cdc-spike/dockerfiles/dependencies/flink-1.17.0/paimon-action:/opt/flink/usrlib/paimon
+      - ./flink-cdc-spike/dockerfiles/dependencies/flink-1.17.0/flink/opt:/opt/flink/usrlib/opt
+    ports:
+      - "8082:8082"
+    command: >
+      standalone-job
+      --job-classname org.apache.paimon.flink.action.FlinkActions
+      kafka_sync_database
+      --warehouse file:/user/hive/warehouse/paimon0
+      --database mediawiki1
+      --kafka_conf properties.bootstrap.servers=PLAINTEXT://broker:29092
+      --kafka_conf topic=my_database.revision\;my_database.page\;my_database.slots\;my_database.content
+      --kafka_conf scan.startup.mode=earliest-offset
+      --kafka_conf properties.group.id=kafka_paimon1
+      --kafka_conf value.format=debezium-json
+      --catalog_conf metastore=hive
+      --catalog_conf uri=thrift://hive-metastore:9083
+      --table_conf bucket=4
+      --table_conf changelog-producer=input
+      --table_conf sink.parallelism=4
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager-kafka-to-paimon
+        jobmanager.rest.port: 8082
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2
+
+
+  flink-taskmanager-kafka-to-paimon:
+    image: flink-base:v1
+    volumes:
+      # cache/flink/warehouse will be used to store Flink SQL catalogs
+      - ./flink-cdc-spike/cache/flink/warehouse:/user/hive/warehouse
+    command: taskmanager
+    # run more task managers!
+    deploy:
+      replicas: 4
+    depends_on:
+      - flink-jobmanager-kafka-to-paimon
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager-kafka-to-paimon
+        jobmanager.rest.port: 8082
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2
+
 
   hive-metastore:
     image: ghcr.io/criccomini/hive-metastore-standalone:latest

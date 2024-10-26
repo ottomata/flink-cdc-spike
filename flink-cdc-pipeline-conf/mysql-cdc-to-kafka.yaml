@@ -7,12 +7,14 @@ source:
   password: main_root_password
   tables: my_database.page, my_database.revision, my_database.slots, my_database.content
   server-id: 5401-5404
-  scan.startup.mode: earliest-offset
+  # scan.startup.mode: latest-offset
+  # debezium.include.schema.changes: true
 
 sink:
   type: kafka
   name: Kafka Sink
   properties.bootstrap.servers: PLAINTEXT://broker:29092
+  properties.value.converter.schemas.enable: true
   sink.add-tableId-to-header-enabled: true
 
 pipeline:
